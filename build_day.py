@@ -24,7 +24,30 @@ student_bgms = sorted(f for f in os.listdir(bgm_dir) if f.endswith('.m4a') and f
 if not os.path.exists(os.path.join(bgm_dir, PARENT_BGM)) or not student_bgms:
     raise SystemExit('BGMが揃っていません: ' + bgm_dir)
 
+def check_width(p):
+    """文字が枠からはみ出さないか、実際のフォント幅で確認する"""
+    from PIL import ImageFont
+    import render_qa as R
+    rules = [('title', R.SERIF_MED, R.TITLE_SIZE, 1080 - (R.TITLE_X - 14) - 40, 3),
+             ('question', R.SERIF_REG, R.Q_SIZE, R.CARD_W - R.Q_PAD_X, 9),
+             ('answer', R.SERIF_MED, R.ANS_SIZE, 1080 - (R.ANS_X - 14) - 40, 2)]
+    errs = []
+    for field, font_path, size, max_w, max_lines in rules:
+        f = ImageFont.truetype(font_path, size)
+        lines = p[field].split('\n')
+        if len(lines) > max_lines:
+            errs.append(f'{field}: {len(lines)}行（上限{max_lines}行）')
+        for i, line in enumerate(lines):
+            indent = size if (field != 'question' and i > 0) else 0
+            if f.getlength(line) + indent > max_w:
+                errs.append(f'{field} {i+1}行目「{line}」が長すぎます')
+    return errs
+
+
 out, s_count = [], 0
+errors = [f'{p.get("key")}: {e}' for p in posts for e in check_width(p)]
+if errors:
+    raise SystemExit('文字のはみ出し:\n' + '\n'.join(errors))
 for p in posts:
     for k in ('key', 'datetime', 'account', 'title', 'question', 'answer', 'caption'):
         if not p.get(k):
