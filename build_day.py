@@ -3,7 +3,7 @@
 毎晩の自動処理：翌日分の投稿JSONから動画を作り、GitHub Pages 用リポジトリに配置する。
   python3 build_day.py posts_YYYY-MM-DD.json REPO_DIR BGM_DIR
 posts の各要素: key, datetime("YYYY/MM/DD HH:MM"), account(保護者/受験生), title, question, answer, caption
-BGM_DIR: サビ8秒を切り出した音源（非公開のGoogleドライブから取得。規約上、公開リポジトリには置かない）
+BGM_DIR: サビ8秒（動画は7秒。BGM_DIR の隣の sfx/clicks.m4a のクリック音も重ねる）を切り出した音源（非公開のGoogleドライブから取得。規約上、公開リポジトリには置かない）
   保護者 → 毎回 In-Between.m4a（同じ音源で統一）
   受験生 → 残りの曲を日付と投稿順で日替わり
 出力:
@@ -21,31 +21,15 @@ src, repo, bgm_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 posts = json.load(open(src, encoding='utf-8'))
 broll = os.path.join(repo, 'assets', 'broll')
 student_bgms = sorted(f for f in os.listdir(bgm_dir) if f.endswith('.m4a') and f != PARENT_BGM)
+SFX = os.path.join(os.path.dirname(os.path.abspath(bgm_dir)), 'sfx', 'clicks.m4a')
+if not os.path.exists(SFX):
+    raise SystemExit('クリック音がありません: ' + SFX)
 if not os.path.exists(os.path.join(bgm_dir, PARENT_BGM)) or not student_bgms:
     raise SystemExit('BGMが揃っていません: ' + bgm_dir)
 
-def check_width(p):
-    """文字が枠からはみ出さないか、実際のフォント幅で確認する"""
-    from PIL import ImageFont
-    import render_qa as R
-    rules = [('title', R.SERIF_MED, R.TITLE_SIZE, 1080 - (R.TITLE_X - 14) - 40, 3),
-             ('question', R.SERIF_REG, R.Q_SIZE, R.CARD_W - R.Q_PAD_X, 9),
-             ('answer', R.SERIF_MED, R.ANS_SIZE, 1080 - (R.ANS_X - 14) - 40, 2)]
-    errs = []
-    for field, font_path, size, max_w, max_lines in rules:
-        f = ImageFont.truetype(font_path, size)
-        lines = p[field].split('\n')
-        if len(lines) > max_lines:
-            errs.append(f'{field}: {len(lines)}行（上限{max_lines}行）')
-        for i, line in enumerate(lines):
-            indent = size if (field != 'question' and i > 0) else 0
-            if f.getlength(line) + indent > max_w:
-                errs.append(f'{field} {i+1}行目「{line}」が長すぎます')
-    return errs
-
-
 out, s_count = [], 0
-errors = [f'{p.get("key")}: {e}' for p in posts for e in check_width(p)]
+from render_qa import check
+errors = [f'{p.get("key")}: {e}' for p in posts for e in check(p)]
 if errors:
     raise SystemExit('文字のはみ出し:\n' + '\n'.join(errors))
 for p in posts:
@@ -62,7 +46,7 @@ for p in posts:
         y, m, d = map(int, p['datetime'][:10].split('/'))
         bgm = student_bgms[(date(y, m, d).toordinal() * 2 + s_count) % len(student_bgms)]
         s_count += 1
-    render(p, broll, os.path.join(repo, 'videos'), os.path.join(bgm_dir, bgm))
+    render(p, broll, os.path.join(repo, 'videos'), os.path.join(bgm_dir, bgm), SFX)
     out.append({**p, 'video': f'videos/{p["key"]}.mp4', 'bgm': bgm.replace('.m4a', '')})
 
 day = posts[0]['datetime'][:10].replace('/', '-')
