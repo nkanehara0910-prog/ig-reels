@@ -23,13 +23,16 @@ from render_qa import draw_line, line_width  # 絵文字つきの行の描画を
 W, H, FPS = 1080, 1920, 30
 FD = '/usr/share/fonts/opentype/noto/'
 def F(w, s):
-    return ImageFont.truetype(FD + f'NotoSansCJK-{w}.ttc', s, index=0)
+    # 明朝体（Noto Serif CJK JP = 源ノ明朝）。index=0 が JP
+    return ImageFont.truetype(FD + f'NotoSerifCJK-{w}.ttc', s, index=0)
 
 ACCENT = {'受験生': (79, 209, 255), '保護者': (255, 184, 107)}
 RED = (255, 110, 120)
 PARENT_BGM = 'In-Between.m4a'
 LOOP = 1.6
-BRAND = '現役医大生しゅうの図解'
+BRAND = '現役医大生塾 MedWolf'
+LOGO = os.path.abspath(os.path.join(HERE, '..', '..', 'assets', 'brand', 'medwolf_badge.png'))
+_LOGO = {}
 CTA = '詳細はキャプションをチェック✅'
 SUB_CY, HOOK_CY, HEAD_CY = 1480, 330, 320
 KINDS = ('countdown', 'bars', 'steps', 'boxes')
@@ -230,7 +233,7 @@ def draw_sub(L, d, text, alpha=1.0):
 
 
 def draw_hook(L, d, title, alpha=1.0):
-    f = F('Black', 76)
+    f = F('Bold', 76)
     lines = title.split('\n')
     lh = int(76 * 1.3)
     for i, l in enumerate(lines):
@@ -265,8 +268,17 @@ def frame(p, bg, t, total, starts):
     # 進捗バーとブランド
     od = ImageDraw.Draw(im)
     od.rectangle([0, 0, W * t / total, 7], fill=rgba(acc, 1))
-    od.text((40, 36), BRAND, font=F('Medium', 26), fill=(170, 178, 196, 255))
+    draw_brand(im)
     return im.convert('RGB')
+
+
+def draw_brand(im, x=36, y=30, size=96):
+    """左上に塾のロゴ（白い丸の中の狼のマーク）と塾名"""
+    if size not in _LOGO:
+        _LOGO[size] = Image.open(LOGO).convert('RGBA').resize((size, size), Image.LANCZOS)
+    im.alpha_composite(_LOGO[size], (x, y))
+    od = ImageDraw.Draw(im)
+    od.text((x + size + 18, y + size / 2), BRAND, font=F('SemiBold', 34), fill=(236, 240, 248, 255), anchor='lm')
 
 
 def timeline(p):
