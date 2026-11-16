@@ -32,7 +32,7 @@ LOGO = os.path.join(REPO_ROOT, 'assets', 'brand', 'medwolf_badge.png')
 CTA = '保存して見返してね👉 詳しくはキャプション'
 LEGEND = '✓＝やること　○＝落とし穴'
 PARENT_BGM = 'In-Between.m4a'
-CTA_WORDS = ('プロフのリンク', '@')
+CTA_WORDS = ('公式LINE', '@')  # 2026-11-16 LINE導線ルール
 FACE_FREE = {'IMG_9531.mp4', 'IMG_9753.mp4'}
 
 
