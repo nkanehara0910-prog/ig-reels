@@ -5,7 +5,7 @@
   python3 types/ng_title/render_ng.py posts.json REPO_DIR --bgm-dir BGM_DIR [--broll-dir DIR] [--frames-dir DIR]
 posts の各要素: key, datetime("YYYY/MM/DD HH:MM"), account(保護者/受験生), pattern(A/B/C), grade,
   kicker(10字まで), topic(\\n で2行・1行8字まで), ng(7字まで), lead(20字まで), caption
-出力: REPO_DIR/videos/<key>.mp4（10.0秒）、REPO_DIR/queue/<投稿日>.json に追記（type=NGタイトル。proto_ は入れない）
+出力: REPO_DIR/videos/<key>.mp4（8.0秒。BGMはループしない）、REPO_DIR/queue/<投稿日>.json に追記（type=NGタイトル。proto_ は入れない）
 """
 import json, os, subprocess, sys, tempfile
 from datetime import date
@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 
-W, H, FPS, DUR = 1080, 1920, 30, 10.0
+W, H, FPS, DUR = 1080, 1920, 30, 8.0  # 2026-11-17 くろさん指定で10秒→8秒（BGMが8秒のため）
 FD = '/usr/share/fonts/opentype/noto/'
 def F(w, s):
     return ImageFont.truetype(FD + f'NotoSansCJK-{w}.ttc', s, index=0)
@@ -109,6 +109,18 @@ def brand_layer():
     d.text(((W - w) // 2, 1560), BRAND, font=F_BRAND, fill=WHITE, stroke_width=3, stroke_fill=(0, 0, 0))
     return im
 
+def bgm_duration(path):
+    return float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                                          '-of', 'csv=p=0', path]).decode().strip() or 0)
+
+
+def check_bgm_length(path, need):
+    """BGMはループさせない（つなぎ目で曲が不自然に戻るため。2026-11-17くろさん指定）。足りなければ止める"""
+    d = bgm_duration(path)
+    if d + 0.01 < need:
+        raise SystemExit(f'BGM {os.path.basename(path)} は {d:.1f}秒で、動画 {need:.1f}秒に足りない。'
+                         'ループはしないので、動画を短くするか長いBGMを用意する')
+
 
 def pick_bgm(p, bgm_dir, idx):
     if p['account'] == '保護者':
@@ -139,7 +151,8 @@ def render(p, repo, bgm_dir, broll_dir, idx=0, frames_dir=None):
     bgm = pick_bgm(p, bgm_dir, idx) if bgm_dir else None
     na = 1 + len(paths)
     if bgm:
-        cmd += ['-stream_loop', '-1', '-i', os.path.join(bgm_dir, bgm)]
+        check_bgm_length(os.path.join(bgm_dir, bgm), DUR)
+        cmd += ['-i', os.path.join(bgm_dir, bgm)]
         af = f"[{na}:a]atrim=0:{T},asetpts=N/SR/TB,volume=0.8,afade=t=out:st={DUR-0.6:.2f}:d=0.6[a]"
     else:
         cmd += ['-f', 'lavfi', '-t', T, '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100']
@@ -158,7 +171,7 @@ def render(p, repo, bgm_dir, broll_dir, idx=0, frames_dir=None):
     os.rmdir(tmpd)
     if frames_dir:
         os.makedirs(frames_dir, exist_ok=True)
-        for tt in (0.3, 3.0, 4.0, 5.5, 9.7):
+        for tt in (0.3, 3.0, 4.0, 5.5, 7.7):
             subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', str(tt), '-i', out, '-frames:v', '1',
                             os.path.join(frames_dir, f'{p["key"]}_{tt:04.1f}.png')], check=True)
     return out, bgm

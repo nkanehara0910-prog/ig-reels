@@ -163,6 +163,18 @@ def pick_broll(p, broll_dir, idx):
     start = max(0.0, min(2.0, dur - DUR - 0.2))
     return path, start
 
+def bgm_duration(path):
+    return float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                                          '-of', 'csv=p=0', path]).decode().strip() or 0)
+
+
+def check_bgm_length(path, need):
+    """BGMはループさせない（つなぎ目で曲が不自然に戻るため。2026-11-17くろさん指定）。足りなければ止める"""
+    d = bgm_duration(path)
+    if d + 0.01 < need:
+        raise SystemExit(f'BGM {os.path.basename(path)} は {d:.1f}秒で、動画 {need:.1f}秒に足りない。'
+                         'ループはしないので、動画を短くするか長いBGMを用意する')
+
 
 def pick_bgm(p, bgm_dir, idx):
     if p['account'] == '保護者':
@@ -189,6 +201,7 @@ def render(p, repo, bgm_dir, broll_dir, idx=0, frames_dir=None):
     vf = (f"[0:v]scale=-2:{H},crop={W}:{H},setsar=1,fps={FPS},boxblur=6:1,"
           f"eq=brightness=-0.12:saturation=0.8[b];[b][1:v]overlay=0:0,format=yuv420p[v]")
     if bgm:
+        check_bgm_length(os.path.join(bgm_dir, bgm), DUR)
         cmd += ['-i', os.path.join(bgm_dir, bgm)]
         af = f"[2:a]atrim=0:{T},asetpts=N/SR/TB,volume=0.8,afade=t=out:st={DUR-0.6:.2f}:d=0.6[a]"
     else:
