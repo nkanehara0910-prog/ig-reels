@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, '..', '..')))
+import bgm_util  # BGMはループしない（長い音源があればそちらを使う）
 from render_qa import draw_line, line_width  # 絵文字つきの行の描画を共用
 
 W, H, FPS = 1080, 1920, 30
@@ -289,19 +290,6 @@ def timeline(p):
     return starts, acc + LOOP
 
 
-def bgm_duration(path):
-    return float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                                          '-of', 'csv=p=0', path]).decode().strip() or 0)
-
-
-def check_bgm_length(path, need):
-    """BGMはループさせない（つなぎ目で曲が不自然に戻るため。2026-11-17くろさん指定）。足りなければ止める"""
-    d = bgm_duration(path)
-    if d + 0.01 < need:
-        raise SystemExit(f'BGM {os.path.basename(path)} は {d:.1f}秒で、動画 {need:.1f}秒に足りない。'
-                         'ループはしないので、動画を短くするか長いBGMを用意する')
-
-
 def pick_bgm(p, bgm_dir, idx):
     if p['account'] == '保護者':
         return PARENT_BGM
@@ -323,8 +311,8 @@ def render(p, repo, bgm_dir, idx=0, frames_dir=None, frame_times=()):
     cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}',
            '-r', str(FPS), '-i', '-']
     if bgm:
-        check_bgm_length(os.path.join(bgm_dir, bgm), total)
-        cmd += ['-i', os.path.join(bgm_dir, bgm),
+        bsrc, bst = bgm_util.resolve(bgm_dir, bgm, total)  # ループしない。足りなければ長い音源から切る
+        cmd += ['-ss', f'{bst:.2f}', '-i', bsrc,
                 '-filter_complex', f'[1:a]atrim=0:{total:.3f},asetpts=N/SR/TB,volume=0.8,afade=t=in:d=0.3,'
                                    f'afade=t=out:st={total-0.8:.2f}:d=0.8[a]', '-map', '0:v', '-map', '[a]']
     else:

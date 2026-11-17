@@ -13,6 +13,8 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
+sys.path.insert(0, REPO_ROOT)
+import bgm_util  # BGMはループしない（長い音源があればそちらを使う）
 
 W, H, FPS, DUR = 1080, 1920, 30, 8.0  # 2026-11-17 くろさん指定で10秒→8秒（BGMが8秒のため）
 FD = '/usr/share/fonts/opentype/noto/'
@@ -109,19 +111,6 @@ def brand_layer():
     d.text(((W - w) // 2, 1560), BRAND, font=F_BRAND, fill=WHITE, stroke_width=3, stroke_fill=(0, 0, 0))
     return im
 
-def bgm_duration(path):
-    return float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                                          '-of', 'csv=p=0', path]).decode().strip() or 0)
-
-
-def check_bgm_length(path, need):
-    """BGMはループさせない（つなぎ目で曲が不自然に戻るため。2026-11-17くろさん指定）。足りなければ止める"""
-    d = bgm_duration(path)
-    if d + 0.01 < need:
-        raise SystemExit(f'BGM {os.path.basename(path)} は {d:.1f}秒で、動画 {need:.1f}秒に足りない。'
-                         'ループはしないので、動画を短くするか長いBGMを用意する')
-
-
 def pick_bgm(p, bgm_dir, idx):
     if p['account'] == '保護者':
         return PARENT_BGM
@@ -151,8 +140,8 @@ def render(p, repo, bgm_dir, broll_dir, idx=0, frames_dir=None):
     bgm = pick_bgm(p, bgm_dir, idx) if bgm_dir else None
     na = 1 + len(paths)
     if bgm:
-        check_bgm_length(os.path.join(bgm_dir, bgm), DUR)
-        cmd += ['-i', os.path.join(bgm_dir, bgm)]
+        bsrc, bst = bgm_util.resolve(bgm_dir, bgm, DUR)  # ループしない。足りなければ長い音源から切る
+        cmd += ['-ss', f'{bst:.2f}', '-i', bsrc]
         af = f"[{na}:a]atrim=0:{T},asetpts=N/SR/TB,volume=0.8,afade=t=out:st={DUR-0.6:.2f}:d=0.6[a]"
     else:
         cmd += ['-f', 'lavfi', '-t', T, '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100']
